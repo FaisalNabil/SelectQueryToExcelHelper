@@ -10,55 +10,63 @@ public class Program
     [STAThread] // Required for OpenFileDialog to work properly
     static void Main()
     {
-        try
+        // Set the EPPlus license context
+        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+        // Step 1: Read DB connection string from a text file
+        string connString = File.ReadAllText("db_connection.txt").Trim();
+
+        while (true) // Perpetual loop
         {
-            // Set the EPPlus license context
-            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            Console.Clear(); // Clears console for a cleaner UI
+            Console.WriteLine("===== SQL to Excel Converter =====");
+            Console.WriteLine("Type 'exit' to quit.");
 
-            // Step 1: Read DB connection string from a text file
-            string connString = File.ReadAllText("db_connection.txt").Trim();
-
-            // Step 2: Let the user select the SQL file using a file picker
+            // Step 2: Let the user select the SQL file
             string sqlFilePath = GetSQLFilePath();
-            if (string.IsNullOrEmpty(sqlFilePath))
+            if (sqlFilePath == "exit")
             {
-                Console.WriteLine("No file selected. Exiting...");
-                return;
+                Console.WriteLine("Exiting...");
+                break;
             }
 
-            string[] queries = File.ReadAllText(sqlFilePath).Split(new[] { ";" }, StringSplitOptions.RemoveEmptyEntries);
-
-            // Step 3: Execute each SELECT query and write results to Excel
-            string excelFilePath = Path.ChangeExtension(sqlFilePath, ".xlsx");
-
-            using (SqlConnection conn = new SqlConnection(connString))
-            using (ExcelPackage excel = new ExcelPackage())
+            try
             {
-                conn.Open();
+                string[] queries = File.ReadAllText(sqlFilePath).Split(new[] { ";" }, StringSplitOptions.RemoveEmptyEntries);
 
-                int sheetIndex = 1;
-                foreach (string query in queries)
+                // Step 3: Execute each SELECT query and write results to Excel
+                string excelFilePath = Path.ChangeExtension(sqlFilePath, ".xlsx");
+
+                using (SqlConnection conn = new SqlConnection(connString))
+                using (ExcelPackage excel = new ExcelPackage())
                 {
-                    string cleanQuery = query.Trim();
-                    if (string.IsNullOrWhiteSpace(cleanQuery)) continue;
+                    conn.Open();
 
-                    DataTable table = ExecuteQuery(conn, cleanQuery);
-                    AddSheetToExcel(excel, table, "Sheet" + sheetIndex, cleanQuery);
-                    sheetIndex++;
+                    int sheetIndex = 1;
+                    foreach (string query in queries)
+                    {
+                        string cleanQuery = query.Trim();
+                        if (string.IsNullOrWhiteSpace(cleanQuery)) continue;
+
+                        DataTable table = ExecuteQuery(conn, cleanQuery);
+                        AddSheetToExcel(excel, table, "Sheet" + sheetIndex, cleanQuery);
+                        sheetIndex++;
+                    }
+
+                    // Save Excel file
+                    File.WriteAllBytes(excelFilePath, excel.GetAsByteArray());
                 }
 
-                // Save Excel file
-                File.WriteAllBytes(excelFilePath, excel.GetAsByteArray());
+                Console.WriteLine($"\n✅ Excel file created successfully: {excelFilePath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("\n❌ Error: " + ex.Message);
             }
 
-            Console.WriteLine($"Excel file created successfully: {excelFilePath}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Error: " + ex.Message);
+            Console.WriteLine("\n🔄 Ready for another import or type 'exit' to quit.");
         }
 
-        // ✅ Keeps CMD open after execution
         Console.WriteLine("\nProcess completed. Press any key to exit...");
         Console.ReadKey();
     }
